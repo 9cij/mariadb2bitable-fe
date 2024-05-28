@@ -1,0 +1,206 @@
+<template>
+  <div class="index">
+    <div class="content">
+      <el-form label-position="top" :model="form" @submit.prevent="onSubmit" label-width="100px">
+        <!-- 数据库选择下拉框 -->
+        <el-form-item label="数据库">
+          <el-select v-model="form.input1" placeholder="请选择" @change="onDatabaseChange">
+            <el-option v-for="(tables, db) in databaseTables" :key="db" :label="db" :value="db"></el-option>
+          </el-select>
+        </el-form-item>
+        
+        <!-- 模式选择按钮 -->
+        <el-form-item>
+          <el-radio-group v-model="form.mode" @change="onModeChange">
+            <el-radio-button label="table">数据表</el-radio-button>
+            <el-radio-button label="sql">SQL</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <!-- 根据选择的模式显示不同的内容 -->
+        <template v-if="form.mode === 'table'">
+          <el-form-item>
+            <el-select v-model="form.input2" placeholder="请选择">
+              <el-option v-for="table in currentTables" :key="table" :label="table" :value="table"></el-option>
+            </el-select>
+          </el-form-item>
+        </template>
+        
+        <template v-if="form.mode === 'sql'">
+          <el-form-item>
+            <el-input type="textarea" v-model="form.sqlQuery" placeholder="请输入 SQL 查询"></el-input>
+          </el-form-item>
+        </template>
+        
+        <!-- 提交按钮 -->
+        <el-button 
+          type="primary" 
+          :loading="loading" 
+          class="submit-button"
+          @click="onSubmit"
+        >
+          提交
+        </el-button>
+      </el-form>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { ElForm, ElFormItem, ElButton, ElMessage, ElSelect, ElOption, ElRadioGroup, ElRadioButton, ElInput } from 'element-plus';
+import { useRouter, useRoute } from 'vue-router';
+import axios from 'axios';
+import { bitable } from '@lark-base-open/connector-api';
+import { BASE_URL } from '../../config';
+
+const route = useRoute();
+
+const form = ref({
+  mode: 'table',
+  input1: route.params.dbname,
+  input2: route.params.tablename,
+  sqlQuery: ''
+});
+
+const databaseTables = ref({});
+
+const currentTables = computed(() => {
+  return databaseTables.value[form.value.input1] || [];
+});
+
+const loading = ref(false);
+
+const onModeChange = () => {
+  form.value.input2 = '';
+  form.value.sqlQuery = '';
+};
+
+const onDatabaseChange = () => {
+  form.value.input2 = '';
+};
+
+const onSubmit = async () => {
+  if (form.value.mode === 'table' && (!form.value.input1 || !form.value.input2)) {
+    if (!form.value.input1) {
+      ElMessage.error('数据库没有选择');
+    }
+    if (!form.value.input2) {
+      ElMessage.error('集合（数据表）没有选择');
+    }
+    return;
+  }
+
+  if (form.value.mode === 'sql' && !form.value.sqlQuery) {
+    ElMessage.error('SQL 查询没有输入');
+    return;
+  }
+
+  try {
+    loading.value = true;
+
+    let sqlQuery = form.value.sqlQuery;
+    if (form.value.mode === 'table') {
+      sqlQuery = `select * from ${form.value.input2}`;
+    }
+
+    const params = {
+      ip: route.params.input1,
+      port: route.params.input2,
+      dbName: form.value.input1,
+      sqlQuery: sqlQuery,
+      username: route.params.username,
+      password: route.params.password,
+      loginAccount: route.params.loginAccount,
+      loginPassword: route.params.loginPassword
+    };
+
+    const response = await axios.get(`${BASE_URL}/preset`, { params });
+
+    console.log(response);
+    if (response.data.code === 0) {
+      ElMessage.success('请求成功');
+      console.log('响应数据:', response.data.data);
+      
+      setTimeout(() => {
+          bitable.saveConfigAndGoNext({
+            loginAccount: route.params.loginAccount,
+            loginPassword: route.params.loginPassword
+          })
+      }, 1000); 
+    } else {
+      ElMessage.error(`请求失败: ${response.data.message}`);
+    }
+  } catch (error) {
+    ElMessage.error(`请求出错: ${error.message}`);
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(async () => {
+  const dataFromRoute = route.params.res;
+  console.log({ip: route.params.input1,
+              port: route.params.input2,
+              dbName: form.value.input1,
+              username: route.params.username,
+              password: route.params.password,
+              loginAccount: route.params.loginAccount,
+              loginPassword: route.params.loginPassword});
+  
+  if (dataFromRoute) {
+    try {
+      // 解析并更新数据库和表格信息
+      const parsedData = JSON.parse(dataFromRoute);
+      databaseTables.value = parsedData.databases;
+
+      // 设置默认选择项，如果存在的话
+      if (route.params.dbname) {
+        form.value.input1 = route.params.dbname;
+      }
+      
+      if (route.params.sqlquery) {
+        const sqlQuery = route.params.sqlquery.trim();
+        const tableNameMatch = sqlQuery.match(/^select \* from (\w+)$/i);
+        if (tableNameMatch) {
+          form.value.mode = 'table';
+          form.value.input2 = tableNameMatch[1];
+        } else {
+          form.value.mode = 'sql';
+          form.value.sqlQuery = sqlQuery;
+        }
+      }
+    } catch (e) {
+      ElMessage.error('无法解析数据库表信息');
+    }
+  } else {
+    ElMessage.error('未能获取到数据库表信息');
+  }
+});
+
+</script>
+
+<style scoped>
+.index {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+}
+.content {
+  width: 80%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto;
+}
+.el-form {
+  width: 100%;
+}
+.submit-button {
+  width: 90%;
+  margin-top: 20px;
+  font-size: 16px;
+}
+</style>
