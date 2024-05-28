@@ -14,12 +14,12 @@
         <el-form-item label="数据库端口号" required>
           <el-input v-model="form.input2" placeholder="请输入数据库端口号"></el-input>
         </el-form-item>
-        <el-form-item label="数据库用户名">
+        <el-form-item label="数据库用户名" required>
           <el-input v-model="form.username" placeholder="请输入数据库用户名"></el-input>
         </el-form-item>
-        <el-form-item label="数据库密码">
+        <el-form-item label="数据库密码" required>
           <el-input v-model="form.password" placeholder="请输入数据库密码" show-password></el-input>
-          <div class="note">（ 注：若数据库开启了访问控制，则需填写数据库用户名和数据库密码，该用户需拥有readAnyDatabase及以上的权限。）</div>
+          <div class="note">（该用户需拥有读取所有数据库中所有表及以上的权限（GRANT SELECT ON *.* TO 'username'@'host';））</div>
         </el-form-item>
       </el-form>
       <el-button 
@@ -137,7 +137,7 @@ onMounted(async () => {
 });
 
 const onSubmit = async () => {
-  if (!form.value.input1 || !form.value.input2 || !form.value.loginAccount || !form.value.loginPassword) {
+  if (!form.value.input1 || !form.value.input2 || !form.value.loginAccount || !form.value.loginPassword || !form.value.username || !form.value.password) {
     if (!form.value.input1) {
       ElMessage.error('数据库公网IP没有填写');
     }
@@ -149,6 +149,12 @@ const onSubmit = async () => {
     }
     if (!form.value.loginPassword) {
       ElMessage.error('登录密码没有填写');
+    }
+    if (!form.value.username) {
+      ElMessage.error('数据库用户名没有填写');
+    }
+    if (!form.value.password) {
+      ElMessage.error('数据库密码没有填写');
     }
     return;
   }

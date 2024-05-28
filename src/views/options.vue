@@ -2,14 +2,13 @@
   <div class="index">
     <div class="content">
       <el-form label-position="top" :model="form" @submit.prevent="onSubmit" label-width="100px">
-        <!-- 数据库选择下拉框 -->
+
         <el-form-item label="数据库">
           <el-select v-model="form.input1" placeholder="请选择" @change="onDatabaseChange">
             <el-option v-for="(tables, db) in databaseTables" :key="db" :label="db" :value="db"></el-option>
           </el-select>
         </el-form-item>
-        
-        <!-- 模式选择按钮 -->
+
         <el-form-item>
           <el-radio-group v-model="form.mode" @change="onModeChange">
             <el-radio-button label="table">数据表</el-radio-button>
@@ -17,7 +16,6 @@
           </el-radio-group>
         </el-form-item>
 
-        <!-- 根据选择的模式显示不同的内容 -->
         <template v-if="form.mode === 'table'">
           <el-form-item>
             <el-select v-model="form.input2" placeholder="请选择">
@@ -32,7 +30,6 @@
           </el-form-item>
         </template>
         
-        <!-- 提交按钮 -->
         <el-button 
           type="primary" 
           :loading="loading" 
@@ -101,7 +98,7 @@ const onSubmit = async () => {
 
     let sqlQuery = form.value.sqlQuery;
     if (form.value.mode === 'table') {
-      sqlQuery = `select * from ${form.value.input2}`;
+      sqlQuery = `select * from ${form.value.input2};`;
     }
 
     const params = {
@@ -147,21 +144,26 @@ onMounted(async () => {
               password: route.params.password,
               loginAccount: route.params.loginAccount,
               loginPassword: route.params.loginPassword});
-  
+
   if (dataFromRoute) {
     try {
-      // 解析并更新数据库和表格信息
       const parsedData = JSON.parse(dataFromRoute);
-      databaseTables.value = parsedData.databases;
+      const filteredDatabases = Object.keys(parsedData.databases).reduce((result, dbName) => {
+        if (!['mysql', 'information_schema', 'sys', 'performance_schema'].includes(dbName)) {
+          result[dbName] = parsedData.databases[dbName];
+        }
+        return result;
+      }, {});
 
-      // 设置默认选择项，如果存在的话
+      databaseTables.value = filteredDatabases;
+
       if (route.params.dbname) {
         form.value.input1 = route.params.dbname;
       }
-      
+
       if (route.params.sqlquery) {
         const sqlQuery = route.params.sqlquery.trim();
-        const tableNameMatch = sqlQuery.match(/^select \* from (\w+)$/i);
+        const tableNameMatch = sqlQuery.match(/^select \* from (\w+);$/i);
         if (tableNameMatch) {
           form.value.mode = 'table';
           form.value.input2 = tableNameMatch[1];
@@ -177,6 +179,7 @@ onMounted(async () => {
     ElMessage.error('未能获取到数据库表信息');
   }
 });
+
 
 </script>
 
